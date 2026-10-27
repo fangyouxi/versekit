@@ -1,0 +1,166 @@
+// Core: paths, database, and the two things every other package needs — a handle and an id.
+// Everything that writes goes through here; adapters and channels never touch the file directly.
+
+import { DatabaseSync } from "node:sqlite";
+import { existsSync, mkdirSync, readFileSync, chmodSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID, createHash } from "node:crypto";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SCHEMA = join(HERE, "schema.sql");
+
+export const SCHEMA_VERSION = "1";
+
+/** All state lives under one root so a test can point it elsewhere. */
+export function paths() {
+  const home = process.env.VK_HOME ?? homedir();
+  const config = join(home, ".config", "versekit");
+  const state = join(home, ".local", "state", "versekit");
+  return {
+    root: home,
+    config,
+    state,
+    configFile: join(config, "config.json"),
+    db: join(state, "vk.db"),
+    log: join(state, "vk.log"),
+    browserProfile: join(state, "browser"),
+    credentials: join(config, "credentials"),
+  };
+}
+
+export function ensureDirs() {
+  const p = paths();
+  for (const dir of [p.config, p.state, p.credentials]) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+  try {
+    chmodSync(p.config, 0o700);
+    chmodSync(p.credentials, 0o700);
+  } catch {
+    /* best effort on non-POSIX filesystems */
+  }
+  return p;
+}
+
+let db = null;
+
+export function open({ readonly = false } = {}) {
+  if (db) return db;
+  const p = paths();
+  mkdirSync(dirname(p.db), { recursive: true, mode: 0o700 });
+  db = new DatabaseSync(p.db, { readOnly: readonly });
+  return db;
+}
+
+export function migrate() {
+  const p = ensureDirs();
+  const conn = open();
+  conn.exec(readFileSync(SCHEMA, "utf8"));
+  conn.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(SCHEMA_VERSION);
+  conn.prepare("INSERT INTO meta (key, value) VALUES ('installed_at', ?) ON CONFLICT(key) DO NOTHING").run(String(Date.now()));
+  try {
+    chmodSync(p.db, 0o600);
+  } catch {
+    /* ignore */
+  }
+  return p;
+}
+
+export function getMeta(key) {
+  return open().prepare("SELECT value FROM meta WHERE key = ?").get(key)?.value ?? null;
+}
+
+export function isInitialised() {
+  return existsSync(paths().db);
+}
+
+// ------------------------------------------------------------------ ids
+
+const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+function shortId(n = 10) {
+  const bytes = new Uint8Array(n);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join("");
+}
+
+export const newId = (prefix) => `${prefix}_${shortId()}`;
+
+export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+// ------------------------------------------------------------------ events
+
+/**
+ * Every state change must leave an event (docs/ARCHITECTURE.md §4).
+ * dedupeKey makes delivery idempotent — the same logical fact is never sent twice.
+ */
+export function emit({ type, severity = "info", publishId = null, payload = null, dedupeKey = null }) {
+  const conn = open();
+  const id = newId("evt");
+  try {
+    conn
+      .prepare("INSERT INTO event (id, type, severity, publish_id, payload_json, dedupe_key, created_at) VALUES (?,?,?,?,?,?,?)")
+      .run(id, type, severity, publishId, payload ? JSON.stringify(payload) : null, dedupeKey, Date.now());
+  } catch (err) {
+    if (String(err.message).includes("UNIQUE")) return null; // already emitted
+    throw err;
+  }
+  return id;
+}
+
+/**
+ * Moves a publish row and records the fact. Throws on an unknown transition so a bad
+ * code path fails loudly instead of writing a state nobody handles.
+ */
+export const PUBLISH_TRANSITIONS = {
+  queued: ["auto_running", "draft_running", "failed", "canceled", "blocked"],
+  auto_running: ["published", "published_limited", "draft_running", "notify_pending", "failed", "blocked", "canceled"],
+  draft_running: ["draft_pending", "notify_pending", "failed", "blocked", "canceled"],
+  draft_pending: ["published", "notify_pending", "failed", "canceled"],
+  notify_pending: ["published", "failed", "canceled", "expired"],
+  published: [],
+  published_limited: ["published"],
+  failed: ["queued", "notify_pending", "canceled"],
+  blocked: ["queued", "canceled"],
+  expired: ["queued", "canceled"],
+  canceled: [],
+};
+
+export function transitionPublish(publishId, to, { reason = null, patch = {} } = {}) {
+  const conn = open();
+  const row = conn.prepare("SELECT * FROM publish WHERE id = ?").get(publishId);
+  if (!row) throw new Error(`没有这条发布：${publishId}`);
+  const allowed = PUBLISH_TRANSITIONS[row.state] ?? [];
+  if (!allowed.includes(to)) {
+    throw new Error(`非法状态迁移：${row.state} → ${to}（允许：${allowed.join(", ") || "无"}）`);
+  }
+  const fields = { ...patch, state: to, updated_at: Date.now() };
+  const sets = Object.keys(fields).map((k) => `${k} = ?`).join(", ");
+  conn.prepare(`UPDATE publish SET ${sets} WHERE id = ?`).run(...Object.values(fields), publishId);
+  emit({
+    type: `publish.${to === "published" ? "published" : to}`,
+    severity: to === "failed" ? "warn" : "info",
+    publishId,
+    payload: { from: row.state, to, reason },
+    dedupeKey: `${publishId}:${row.state}->${to}:${row.updated_at}`,
+  });
+  return { from: row.state, to };
+}
+
+/** Enqueue work. One queued run per (kind, target) keeps retries from piling up. */
+export function enqueue({ kind, targetType, targetId, priority = 100, runAfter = null }) {
+  const conn = open();
+  const existing = conn
+    .prepare("SELECT id FROM run WHERE kind=? AND target_type=? AND target_id=? AND state IN ('queued','running')")
+    .get(kind, targetType, targetId);
+  if (existing) return existing.id;
+  const id = newId("run");
+  conn
+    .prepare("INSERT INTO run (id, kind, target_type, target_id, state, priority, run_after, created_at) VALUES (?,?,?,?, 'queued', ?,?,?)")
+    .run(id, kind, targetType, targetId, priority, runAfter, Date.now());
+  return id;
+}
+
+export { randomUUID };

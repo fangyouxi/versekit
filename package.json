@@ -1,0 +1,15 @@
+{
+  "name": "versekit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first publish + own-account analytics control plane for multi-platform creators",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "workspaces": ["packages/*"],
+  "bin": { "vk": "./packages/cli/src/vk.mjs" },
+  "scripts": {
+    "vk": "node packages/cli/src/vk.mjs",
+    "doctor": "node packages/cli/src/vk.mjs doctor --human",
+    "test": "node --test packages/*/test/*.test.mjs"
+  }
+}

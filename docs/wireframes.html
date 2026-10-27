@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>versekit 设计稿 v0.1</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161a21; --panel2:#1d222b; --line:#2a313d;
+    --text:#e6e9ef; --muted:#8b93a3; --dim:#5d6675;
+    --accent:#4f8cff; --ok:#3ecf8e; --warn:#f5a524; --bad:#f2555a; --purple:#a78bfa;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 96px}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:15px;margin:0;font-weight:600}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 34px}
+  section{margin:0 0 44px}
+  .cap{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+  .cap .n{font:11px var(--mono);color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .cap p{margin:0;color:var(--muted);font-size:12.5px}
+  .frame{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .bar{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .dot{width:10px;height:10px;border-radius:50%;background:#3a4150}
+  .url{font:11.5px var(--mono);color:var(--dim);margin-left:8px}
+  .body{padding:16px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .grid{display:grid;gap:12px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:1.4fr 1fr}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px}
+  .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  .v{font-size:19px;font-weight:600;margin-top:3px}
+  .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .tag.ok{color:var(--ok);border-color:#1f4a38;background:#12241d}
+  .tag.warn{color:var(--warn);border-color:#4a3a1a;background:#241d10}
+  .tag.bad{color:var(--bad);border-color:#4a2024;background:#241214}
+  .tag.mut{color:var(--muted)}
+  .acct{display:flex;align-items:center;gap:11px}
+  .av{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:700;color:#0b0d11;flex:none}
+  .avatar-yt{background:#ff4d4d}.avatar-bili{background:#00aeec}.avatar-dy{background:#25f4ee}.avatar-xhs{background:#ff2442}
+  .acct .name{font-weight:600}
+  .acct .meta{font-size:11.5px;color:var(--dim);margin-top:1px}
+  .spacer{flex:1}
+  .btn{font-size:12px;padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:#232a35;color:var(--text);cursor:default}
+  .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.ghost{background:transparent}
+  .btn.danger{color:var(--bad);border-color:#4a2024}
+  .list{display:flex;flex-direction:column;gap:9px}
+  .item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+  .thumb{width:44px;height:30px;border-radius:5px;background:linear-gradient(135deg,#2b3442,#1a2029);flex:none}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;color:var(--dim);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:0 8px 7px}
+  td{padding:8px;border-top:1px solid var(--line)}
+  td.mono,th.mono{font-family:var(--mono);font-size:11.5px}
+  .spark{width:100%;height:84px;display:block}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+  .feishu{max-width:420px;background:#fff;color:#1f2329;border-radius:12px;overflow:hidden;border:1px solid #dcdfe6}
+  .fh{display:flex;gap:9px;padding:12px 14px 6px;align-items:center}
+  .fh .logo{width:22px;height:22px;border-radius:6px;background:#3370ff;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+  .fh .who{font-size:13px;font-weight:600}
+  .fh .when{font-size:11px;color:#8f959e}
+  .fm{padding:2px 14px 10px;font-size:13.5px;line-height:1.6;color:#1f2329}
+  .fm b{color:#0f1419}
+  .fmeta{background:#f5f6f7;border-radius:8px;margin:0 14px;padding:9px 11px;font-size:12px;color:#646a73;line-height:1.75}
+  .fact{display:flex;gap:6px;padding:10px 14px 14px;flex-wrap:wrap}
+  .fact .btn{background:#fff;border:1px solid #dcdfe6;color:#1f2329;font-size:12.5px;padding:6px 12px;cursor:default}
+  .fact .btn.pri{background:#3370ff;border-color:#3370ff;color:#fff}
+  .term{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:14px 16px;font:12.5px/1.7 var(--mono);overflow-x:auto}
+  .term .p{color:var(--ok)} .term .c{color:var(--dim)} .term .j{color:var(--purple)}
+  .term .str{color:#9ecbff} .term .num{color:#f5a524}
+  .note{font-size:12px;color:var(--dim);margin-top:10px}
+  .split{display:grid;grid-template-columns:1fr 1px 1fr;gap:18px;align-items:start}
+  .split .sep{background:var(--line);height:100%}
+  code{font-family:var(--mono);font-size:12px;background:#20262f;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>versekit 设计稿 <span style="color:var(--dim);font-weight:400">v0.1</span></h1>
+  <p class="sub">静态示意，用于评审信息层级与三端分工；不是可交互原型。对应 <code>docs/PRD.md</code> §5–§8。</p>
+
+  <!-- 1 -->
+  <section>
+    <div class="cap"><span class="n">01</span><h2>账号墙 · 本地 Web 首页</h2><p>用户每天回来唯一必看的一屏。回答一个问题：<b>我的号都还好吗？</b></p></div>
+    <div class="frame">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">localhost:8787</span></div>
+      <div class="body">
+        <div class="grid g3" style="margin-bottom:14px">
+          <div class="card"><div class="k">账号健康</div><div class="v">7 / 8 <span style="font-size:12px;color:var(--warn)">1 需处理</span></div></div>
+          <div class="card"><div class="k">本周发布</div><div class="v">12 <span style="font-size:12px;color:var(--ok)">+3</span></div></div>
+          <div class="card"><div class="k">今日采集</div><div class="v">38 <span style="font-size:12px;color:var(--dim)">条快照</span></div></div>
+        </div>
+
+        <div class="list">
+          <div class="item">
+            <div class="av avatar-dy">抖</div>
+            <div><div class="name">抖音 · AI 工具研究所</div><div class="meta">最近发布 2 小时前 · 采集 12 分钟前</div></div>
+            <div class="spacer"></div>
+            <span class="tag warn">● 登录态 71h 后失效</span>
+            <span class="btn">续期</span>
+          </div>
+          <div class="item" style="border-color:#4a2024;background:#1d1416">
+            <div class="av avatar-xhs">红</div>
+            <div><div class="name">小红书 · AI 工具研究所</div><div class="meta">上次成功采集 3 天前 · 采集连续失败 2 次</div></div>
+            <div class="spacer"></div>
+            <span class="tag bad">● 登录已失效</span>
+            <span class="btn pri">扫码重新登录</span>
+          </div>
+          <div class="item">
+            <div class="av avatar-yt">YT</div>
+            <div><div class="name">YouTube · @ai-tools-lab</div><div class="meta">最近发布 昨天 20:00 · 采集 12 分钟前</div></div>
+            <div class="spacer"></div>
+            <span class="tag ok">● 正常 · API</span>
+            <span class="btn ghost">详情</span>
+          </div>
+          <div class="item">
+            <div class="av avatar-bili">B</div>
+            <div><div class="name">B站 · AI 工具研究所</div><div class="meta">最近发布 昨天 20:00 · 采集 12 分钟前</div></div>
+            <div class="spacer"></div>
+            <span class="tag ok">● 正常 · 公开接口</span>
+            <span class="btn ghost">详情</span>
+          </div>
+          <div class="item">
+            <div class="av" style="background:#7c8b9e">TT</div>
+            <div><div class="name">TikTok · @ai-tools-lab</div><div class="meta">1 条已发（仅自己可见）· 等你放行后系统自动设公开</div></div>
+            <div class="spacer"></div>
+            <span class="tag warn">● 待放行</span>
+            <span class="btn">标记已发布</span>
+          </div>
+        </div>
+        <p class="note">设计要点：失效账号永远排在最上并整行变色；每行只给<b>一个</b>主按钮；"采集方式"直接写在状态里（API / 公开接口 / notify），让用户知道为什么有的号要扫码。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="cap"><span class="n">02</span><h2>发布台 · 一条内容 → 多平台差异编排</h2><p>目标：6 个平台 &lt; 2 分钟。差异只暴露"平台真的不同"的字段。</p></div>
+    <div class="frame">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">localhost:8787/publish/new</span></div>
+      <div class="body">
+        <div class="split">
+          <div>
+            <div class="card" style="margin-bottom:12px">
+              <div class="k">主素材</div>
+              <div class="row" style="margin-top:9px;align-items:center">
+                <div class="thumb" style="width:92px;height:56px"></div>
+                <div>
+                  <div style="font-weight:600">ai-tools-ep12.mp4</div>
+                  <div class="meta" style="color:var(--dim);font-size:11.5px">1080×1920 · 4:12 · 236 MB</div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="k" style="margin-bottom:9px">发布到</div>
+              <div class="list">
+                <div class="item" style="background:#232a35">
+                  <span class="tag ok">✓</span><b>抖音</b><div class="spacer"></div><span class="tag mut">auto</span>
+                </div>
+                <div class="item" style="background:#232a35">
+                  <span class="tag ok">✓</span><b>小红书</b><div class="spacer"></div><span class="tag warn">auto · 自动化</span>
+                </div>
+                <div class="item" style="background:#232a35">
+                  <span class="tag ok">✓</span><b>B站</b><div class="spacer"></div><span class="tag mut">auto</span>
+                </div>
+                <div class="item" style="background:#232a35">
+                  <span class="tag ok">✓</span><b>YouTube</b><div class="spacer"></div><span class="tag mut">auto</span>
+                </div>
+                <div class="item">
+                  <span class="tag">○</span><span style="color:var(--dim)">TikTok（待 App 审核）</span>
+                </div>
+              </div>
+            </div>
+            <p class="note" style="margin-top:10px">发布模式默认 <code>auto</code>：点一次就发出去。只有自动通道走不通时，系统才会<b>自己降级</b>为 notify，并告诉你原因。</p>
+          </div>
+          <div class="sep"></div>
+          <div>
+            <div class="card">
+              <div class="k" style="margin-bottom:10px">B站（已选）</div>
+              <div style="font-size:12px;color:var(--dim)">标题</div>
+              <div class="item" style="margin:5px 0 11px">我用了 30 天 AI 剪辑，发现 3 个反常识结论</div>
+              <div style="font-size:12px;color:var(--dim)">分区 / 标签</div>
+              <div class="item" style="margin:5px 0 11px">科技 · 人工智能 / #AI工具 #效率</div>
+              <div class="row" style="gap:8px">
+                <div style="flex:1"><div class="k">定时</div><div class="item" style="margin-top:5px">今天 20:00</div></div>
+                <div style="flex:1"><div class="k">可见性</div><div class="item" style="margin-top:5px">公开</div></div>
+              </div>
+              <p class="note" style="margin-top:12px">切换平台时只换这块；未改动的字段继承主稿。抖音那一栏额外出现"话题 / 位置 / 是否允许下载"。</p>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px;justify-content:flex-end">
+          <span class="btn ghost">保存草稿</span>
+          <span class="btn pri">发布到 4 个平台</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="cap"><span class="n">03</span><h2>作品详情 · 快照与来源</h2><p>数据必须"可解释"：每个点来自哪次抓取、是成功还是降级。</p></div>
+    <div class="frame">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">localhost:8787/works/w_8f21</span></div>
+      <div class="body">
+        <div class="grid g2">
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:baseline">
+              <div><div class="k">播放量 · 全部平台</div><div class="v">128,430</div></div>
+              <span class="tag ok">采集正常</span>
+            </div>
+            <svg class="spark" viewBox="0 0 320 84" preserveAspectRatio="none">
+              <polyline points="0,78 30,74 60,66 90,52 120,44 150,33 180,26 210,21 240,17 270,14 300,12 320,11"
+                        fill="none" stroke="#4f8cff" stroke-width="2"/>
+              <polyline points="0,80 30,79 60,77 90,72 120,70 150,67 180,64 210,62 240,60 270,59 300,58 320,57"
+                        fill="none" stroke="#3ecf8e" stroke-width="1.6" opacity=".85"/>
+              <polyline points="0,83 30,83 60,82 90,81 120,80 150,79 180,78 210,77 240,77 270,76 300,76 320,75"
+                        fill="none" stroke="#f5a524" stroke-width="1.4" opacity=".8"/>
+            </svg>
+            <div class="legend">
+              <span><i style="background:#4f8cff"></i>播放</span>
+              <span><i style="background:#3ecf8e"></i>点赞</span>
+              <span><i style="background:#f5a524"></i>收藏</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="k" style="margin-bottom:8px">最近采集</div>
+            <table>
+              <tr><th>时间</th><th>来源</th><th>状态</th></tr>
+              <tr><td class="mono">10-27 12:10</td><td>拦截</td><td><span class="tag ok">ok</span></td></tr>
+              <tr><td class="mono">10-27 06:10</td><td>API</td><td><span class="tag ok">ok</span></td></tr>
+              <tr><td class="mono">10-26 20:10</td><td>拦截</td><td><span class="tag ok">ok</span></td></tr>
+              <tr><td class="mono">10-26 14:10</td><td>拦截</td><td><span class="tag warn">partial</span></td></tr>
+              <tr><td class="mono">10-25 09:00</td><td>CSV</td><td><span class="tag mut">手工</span></td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="list" style="margin-top:12px">
+          <div class="item"><div class="av avatar-dy">抖</div><b>抖音</b><div class="spacer"></div><span class="mono" style="color:var(--muted)">86,120</span><span class="btn ghost">查看</span></div>
+          <div class="item"><div class="av avatar-bili">B</div><b>B站</b><div class="spacer"></div><span class="mono" style="color:var(--muted)">31,004</span><span class="btn ghost">查看</span></div>
+          <div class="item"><div class="av avatar-yt">YT</div><b>YouTube</b><div class="spacer"></div><span class="mono" style="color:var(--muted)">11,306</span><span class="btn ghost">查看</span></div>
+        </div>
+        <p class="note">设计要点：<code>source</code> 与 <code>status</code> 是<b>一等公民</b>。行业通病是"数据看着对，其实是三天前的"或"登录过期后静默返回 0"。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="cap"><span class="n">04</span><h2>总览看板</h2><p>替代"每天登录 6 个后台"。默认按周，支持平台/账号/内容类型切分。</p></div>
+    <div class="frame">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">localhost:8787/overview?range=7d</span></div>
+      <div class="body">
+        <div class="row" style="gap:8px;margin-bottom:14px">
+          <span class="btn pri">7 天</span><span class="btn ghost">30 天</span><span class="btn ghost">90 天</span>
+          <div class="spacer"></div>
+          <span class="btn ghost">全部平台 ▾</span><span class="btn ghost">全部账号 ▾</span>
+        </div>
+        <div class="grid g3" style="margin-bottom:12px">
+          <div class="card"><div class="k">播放</div><div class="v">412.8k</div><span class="tag ok">+18.2%</span></div>
+          <div class="card"><div class="k">点赞</div><div class="v">21.4k</div><span class="tag ok">+9.1%</span></div>
+          <div class="card"><div class="k">收藏</div><div class="v">8.9k</div><span class="tag warn">-2.4%</span></div>
+        </div>
+        <div class="card">
+          <div class="k" style="margin-bottom:8px">按平台 · 播放</div>
+          <svg class="spark" viewBox="0 0 320 70" preserveAspectRatio="none" style="height:70px">
+            <polyline points="0,58 40,50 80,44 120,36 160,30 200,24 240,20 280,16 320,12" fill="none" stroke="#4f8cff" stroke-width="2"/>
+            <polyline points="0,64 40,62 80,58 120,52 160,48 200,44 240,40 280,37 320,35" fill="none" stroke="#00aeec" stroke-width="1.6"/>
+            <polyline points="0,66 40,65 80,63 120,60 160,58 200,55 240,53 280,52 320,50" fill="none" stroke="#f2555a" stroke-width="1.6"/>
+          </svg>
+          <div class="legend">
+            <span><i style="background:#4f8cff"></i>抖音</span>
+            <span><i style="background:#00aeec"></i>B站</span>
+            <span><i style="background:#f2555a"></i>小红书</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="cap"><span class="n">05</span><h2>飞书卡片 · 控制面（手机）</h2><p>主路径是“发完了告诉你”；<code>notify</code> 卡片只在自动通道降级时出现，并必带真实原因。</p></div>
+    <div class="row" style="gap:16px">
+      <div class="feishu">
+        <div class="fh"><div class="logo">vk</div><div><div class="who">versekit</div><div class="when">刚刚</div></div></div>
+        <div class="fm"><b>✅ 已发布到 3 个平台</b><br>《我用了 30 天 AI 剪辑…》</div>
+        <div class="fmeta">B站 · 20:00 公开<br>YouTube · 20:00 公开<br>TikTok · 已发，<b>仅自己可见</b>（visibility = private_then_public）</div>
+        <div class="fact"><span class="btn pri">放行公开</span><span class="btn">看 24 小时数据</span></div>
+      </div>
+      <div class="feishu">
+        <div class="fh"><div class="logo">vk</div><div><div class="who">versekit</div><div class="when">2 分钟前</div></div></div>
+        <div class="fm"><b>⚠️ 小红书未能自动发布（已降级）</b><br>素材与文案已就绪，去 App 按一下就行。原因：无官方发布接口，自动化被风控拦截。</div>
+        <div class="fmeta">平台：小红书 · fallback_reason = repeated_failure<br>标题：我用了 30 天 AI 剪辑，发现 3 个反常识结论<br>话题：#AI工具 #效率 · 封面已选</div>
+        <div class="fact"><span class="btn pri">我已发布</span><span class="btn">重试自动</span><span class="btn">转手动跟踪</span></div>
+      </div>
+    </div>
+    <p class="note">设计要点：卡片里放<b>决策所需的最小上下文</b>（影响几条、上次成功什么时候），不放日志、不放路径、不放凭证。点完就地更新原消息，不刷屏。</p>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <div class="cap"><span class="n">06</span><h2>CLI · 同一内核的另一张脸</h2><p>默认 JSON（给 agent/脚本），<code>--human</code> 才给人看。能力集合必须与 Web 等价。</p></div>
+    <div class="split">
+      <div class="term">
+<span class="c"># agent / 脚本路径</span>
+<span class="p">$</span> vk account list --json
+{
+  <span class="j">"accounts"</span>: [
+    { <span class="j">"platform"</span>: <span class="str">"douyin"</span>, <span class="j">"state"</span>: <span class="str">"expiring"</span>,
+      <span class="j">"expires_in_h"</span>: <span class="num">71</span> },
+    { <span class="j">"platform"</span>: <span class="str">"xiaohongshu"</span>, <span class="j">"state"</span>: <span class="str">"expired"</span>,
+      <span class="j">"last_ok"</span>: <span class="str">"2026-10-24T09:12Z"</span> }
+  ]
+}
+
+<span class="p">$</span> vk publish ./ep12.mp4 --to douyin,xhs,bili,youtube \
+    --schedule 20:00 --json
+<span class="j">{ "publishes"</span>: [<span class="str">"p_1a"</span>,<span class="str">"p_1b"</span>,<span class="str">"p_1c"</span>,<span class="str">"p_1d"</span>],
+  <span class="j">"mode"</span>: <span class="str">"auto"</span> <span class="j">}</span>  <span class="c"># 失败自动降级为 notify</span>
+      </div>
+      <div class="sep"></div>
+      <div class="term">
+<span class="c"># 人的路径</span>
+<span class="p">$</span> vk now --human
+账号  抖音      ● 警告   71h 后失效
+      小红书    ● 失效   3 天未采集 → vk account reauth xhs
+      tiktok    auto    已发 · 仅自己可见 → 等你放行
+队列  发布 1 · 采集 38 · 失败 0
+通道  飞书 已连接（2 分钟前投递成功）
+
+<span class="p">$</span> vk publish ./ep12.mp4 --to all --dry-run --human
+将发布 4 个平台（mode=auto）：
+  douyin     auto    定时 20:00
+  xiaohongshu auto   定时 20:00  ⚠ 自动化通道，可能降级
+  bili       auto    定时 20:00
+  youtube    auto    定时 20:00
+  tiktok     跳过   （App 审核中，暂只能 SELF_ONLY）
+      </div>
+    </div>
+    <p class="note">设计要点：<code>--dry-run</code> 与 <code>--json</code> 是产品能力不是调试开关——agent 需要"先演一遍再执行"。</p>
+  </section>
+
+  <!-- 7 -->
+  <section>
+    <div class="cap"><span class="n">07</span><h2>三端关系（一页看懂）</h2><p>同一命令，三种呈现；业务逻辑只有一份。</p></div>
+    <div class="frame">
+      <div class="body">
+        <table>
+          <tr><th>用户意图</th><th>CLI</th><th>Web</th><th>飞书 / Telegram</th></tr>
+          <tr><td>看号是否健康</td><td class="mono">vk account list</td><td>账号墙</td><td>失效卡片（被动）</td></tr>
+          <tr><td>重新登录</td><td class="mono">vk account reauth</td><td>扫码页</td><td>「查看怎么修」→ 深链</td></tr>
+          <tr><td>发一条内容</td><td class="mono">vk publish</td><td>发布台</td><td>“已发布”结果卡片</td></tr>
+          <tr><td>重试失败</td><td class="mono">vk publish retry</td><td>失败列表</td><td>卡片按钮「重试」</td></tr>
+          <tr><td>看数据</td><td class="mono">vk stats --json</td><td>看板 / 作品详情</td><td>每日摘要卡片</td></tr>
+          <tr><td>审批</td><td class="mono">vk approval ok|no</td><td>待审列表</td><td>卡片「发布 / 打回」</td></tr>
+        </table>
+        <p class="note">三端都由 <code>core/commands.ts</code> 的注册表派生，CI 校验三者命令集合一致（PRD §5.4）。</p>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
