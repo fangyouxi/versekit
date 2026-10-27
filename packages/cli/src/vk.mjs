@@ -6,6 +6,8 @@
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { paths, ensureDirs, migrate, open, getMeta, isInitialised } from "../../core/src/index.mjs";
 import { COMMANDS } from "../../core/src/commands.mjs";
+import { createRunner } from "../../core/src/runner.mjs";
+import { loadAdapters, buildHandlers } from "../../core/src/adapters.mjs";
 import { browserReady, PROFILE, PORT } from "../../driver-browser/src/index.mjs";
 
 const PKG = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
@@ -117,7 +119,7 @@ function cmdNow() {
   return data;
 }
 
-function cmdDoctor() {
+async function cmdDoctor() {
   const checks = [];
   const add = (id, ok, detail, next) => checks.push({ id, ok, detail, ...(next ? { next } : {}) });
 
@@ -146,10 +148,14 @@ function cmdDoctor() {
   add("account_health", counts.expiring === 0, counts.expiring ? `${counts.expiring} 个账号需要重新登录` : "全部正常", counts.expiring ? "vk account reauth <id>" : null);
   add("queue", counts.stuck === 0, counts.stuck ? `${counts.stuck} 个任务租约过期` : "没有卡住的任务", counts.stuck ? "重启守护进程（任务会自动重排）" : null);
 
-  const adapters = ["youtube", "bilibili", "tiktok", "xiaohongshu", "douyin"].filter((a) =>
-    existsSync(new URL(`../../adapter-${a}/package.json`, import.meta.url)),
+  const loaded = await loadAdapters();
+  const adapters = loaded.adapters.map((a) => a.platform);
+  add(
+    "adapters",
+    adapters.length > 0 && loaded.errors.length === 0,
+    adapters.length ? `${adapters.join(", ")}${loaded.errors.length ? `（${loaded.errors.length} 个加载失败）` : ""}` : "尚未接入任何平台适配器",
+    adapters.length ? null : "按 docs/adapter-contract.md 实现第一个适配器",
   );
-  add("adapters", adapters.length > 0, adapters.length ? adapters.join(", ") : "尚未接入任何平台适配器", adapters.length ? null : "按 docs/adapter-contract.md 实现第一个适配器");
 
   const feishu = isInitialised()
     ? open({ readonly: true }).prepare("SELECT COUNT(*) n FROM channel_binding WHERE channel='feishu'").get().n > 0
@@ -172,6 +178,37 @@ function cmdDoctor() {
     console.log(`\n${okCount}/${checks.length} 项通过`);
   } else out(data);
   return data;
+}
+
+async function cmdServe() {
+  if (!guard()) return;
+  const { adapters, errors } = await loadAdapters();
+  const handlers = buildHandlers(adapters);
+  const concurrency = Number(valueOf("--concurrency") ?? 2);
+  const log = (m) => (human ? console.log(m) : console.error(m));
+  const runner = createRunner({ handlers, concurrency, log });
+
+  if (has("--once")) {
+    const started = await runner.tick();
+    const data = { ok: true, started, runner: runner.state(), adapters: adapters.map((a) => a.platform), adapter_errors: errors };
+    if (human) {
+      console.log(line("本轮启动", `${started} 个任务`));
+      console.log(line("队列", `待跑 ${data.runner.queued} · 运行中 ${data.runner.running} · 失败 ${data.runner.failed}`));
+      console.log(line("适配器", data.adapters.length ? data.adapters.join(", ") : "（尚未安装）"));
+    } else out(data);
+    return data;
+  }
+
+  for (const sig of ["SIGINT", "SIGTERM"]) {
+    process.on(sig, () => {
+      log(`\n收到 ${sig}，停止取新任务（正在跑的会跑完）`);
+      runner.stop();
+      setTimeout(() => process.exit(0), 100);
+    });
+  }
+  log(`versekit 守护进程已启动：并发 ${concurrency} · 适配器 ${adapters.length} 个${adapters.length ? "：" + adapters.map((a) => a.platform).join(", ") : ""}`);
+  for (const e of errors) log(`适配器加载失败 ${e.dir}: ${e.message}`);
+  await runner.loop();
 }
 
 function cmdCommands() {
@@ -197,6 +234,7 @@ function usage() {
     "  vk init",
     "  vk now [--human]",
     "  vk doctor [--human]",
+    "  vk serve [--once] [--concurrency 2]",
     "  vk commands [--human]",
     "  vk --version",
     "",
@@ -214,8 +252,9 @@ try {
   else if (has("--version") || has("-v")) console.log(PKG.version);
   else if (cmd === "init") cmdInit();
   else if (cmd === "now") cmdNow();
-  else if (cmd === "doctor") cmdDoctor();
+  else if (cmd === "doctor") await cmdDoctor();
   else if (cmd === "commands") cmdCommands();
+  else if (cmd === "serve") await cmdServe();
   else {
     console.error(`未知命令：${cmd}\n`);
     usage();

@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS run (
   kind         TEXT NOT NULL,
   target_type  TEXT NOT NULL,
   target_id    TEXT NOT NULL,
+  lane         TEXT,                 -- 并发闸门：同一 lane（通常是 account_id）同时只跑一个任务
   state        TEXT NOT NULL DEFAULT 'queued',
   priority     INTEGER NOT NULL DEFAULT 100,
   run_after    INTEGER,
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS run (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_run_ready ON run(state, run_after, priority);
+CREATE INDEX IF NOT EXISTS idx_run_lane ON run(lane, state);
 
 CREATE TABLE IF NOT EXISTS event (
   id           TEXT PRIMARY KEY,

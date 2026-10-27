@@ -102,9 +102,10 @@ flowchart LR
 | 层 | 状态 |
 |---|---|
 | 文档（PRD / 架构 / 平台矩阵 / 适配器规约 / 设计稿） | ✅ |
-| 内核（schema · 状态机 · 事件去重 · 幂等队列 · 命令注册表） | ✅ 8/8 测试通过 |
+| 内核（schema · 状态机 · 事件去重 · 幂等队列 · 命令注册表） | ✅ |
+| **队列 runner**（租约/心跳/退避重试/单账号串行） | ✅ 20/20 测试通过 |
 | Chrome CDP 驱动（持久 profile · 真实鼠标 · shadow DOM · 响应拦截） | ✅ |
-| CLI `vk init / now / doctor / commands` | ✅ |
+| CLI `vk init / now / doctor / commands / serve` | ✅ |
 | 适配器：YouTube · B站 · TikTok · 小红书 · 抖音 | ⬜ v0.1–v0.2 |
 | 飞书通道（长连接 + 交互卡片） | ⬜ v0.2 |
 | 本地 Web（5 页） | ⬜ v0.2 |

@@ -57,7 +57,16 @@ export function open({ readonly = false } = {}) {
 export function migrate() {
   const p = ensureDirs();
   const conn = open();
-  conn.exec(readFileSync(SCHEMA, "utf8"));
+  const schema = readFileSync(SCHEMA, "utf8");
+  try {
+    conn.exec(schema);
+  } catch (err) {
+    // An older database may lack a column that a new index references; the second pass below
+    // creates it once the column exists. Anything else is a real schema error.
+    if (!/no such column/i.test(err.message)) throw err;
+  }
+  addMissingColumns(conn);
+  conn.exec(schema); // 幂等：补齐第一遍因缺列而没建成的索引
   conn.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(SCHEMA_VERSION);
   conn.prepare("INSERT INTO meta (key, value) VALUES ('installed_at', ?) ON CONFLICT(key) DO NOTHING").run(String(Date.now()));
   try {
@@ -66,6 +75,21 @@ export function migrate() {
     /* ignore */
   }
   return p;
+}
+
+/** SQLite has no "ADD COLUMN IF NOT EXISTS"; keep re-runs cheap and idempotent. */
+const COLUMNS = {
+  run: { lane: "TEXT" },
+  publish: {},
+};
+
+function addMissingColumns(conn) {
+  for (const [table, cols] of Object.entries(COLUMNS)) {
+    const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    for (const [name, type] of Object.entries(cols)) {
+      if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+    }
+  }
 }
 
 export function getMeta(key) {
@@ -150,7 +174,7 @@ export function transitionPublish(publishId, to, { reason = null, patch = {} } =
 }
 
 /** Enqueue work. One queued run per (kind, target) keeps retries from piling up. */
-export function enqueue({ kind, targetType, targetId, priority = 100, runAfter = null }) {
+export function enqueue({ kind, targetType, targetId, lane = null, priority = 100, runAfter = null }) {
   const conn = open();
   const existing = conn
     .prepare("SELECT id FROM run WHERE kind=? AND target_type=? AND target_id=? AND state IN ('queued','running')")
@@ -158,8 +182,8 @@ export function enqueue({ kind, targetType, targetId, priority = 100, runAfter =
   if (existing) return existing.id;
   const id = newId("run");
   conn
-    .prepare("INSERT INTO run (id, kind, target_type, target_id, state, priority, run_after, created_at) VALUES (?,?,?,?, 'queued', ?,?,?)")
-    .run(id, kind, targetType, targetId, priority, runAfter, Date.now());
+    .prepare("INSERT INTO run (id, kind, target_type, target_id, lane, state, priority, run_after, created_at) VALUES (?,?,?,?,?, 'queued', ?,?,?)")
+    .run(id, kind, targetType, targetId, lane, priority, runAfter, Date.now());
   return id;
 }
 
