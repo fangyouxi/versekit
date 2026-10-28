@@ -27,27 +27,46 @@
 ```ts
 interface PlatformAdapter {
   platform: string;
-  capabilities: {
-    publish: "api" | "web" | "none";
-    visibility: Array<"public" | "private" | "friends"> | null;  // 发布时能否选可见性
-    draft: boolean;          // 能否存草稿
-    collect: "api" | "web" | "none";
-    requiresQualification: boolean;   // 官方 API 才为 true
-  };
-  ready(): string | null;              // null = 可用；否则返回「人能看懂」的缺失原因
-  login(ctx): Promise<void>;           // 扫码/授权，落到 Web 页
-  check(ctx): Promise<AccountState>;   // ok | expiring | expired | banned
+  capabilities: Capabilities;
+  ready(): string | null;                 // null = 可用；否则返回「人能看懂」的缺失原因
+  login?(ctx): Promise<void>;             // 扫码/授权，落到 Web 页；走平台自带 CLI 登录时可为 null
+  check?(ctx): Promise<AccountHealth>;    // 主动探测登录态；缺省时靠发布/采集失败反向驱动
   publish(input): Promise<PublishResult>;
-  collect(id): Promise<Metrics>;
+  collect?(input): Promise<Metrics>;
+}
+
+interface Capabilities {
+  publish: "api" | "web" | "cli" | "none";
+  //   api = 官方接口；web = 浏览器自动化；cli = 借助平台生态的 CLI（如 biliup）
+  collect: "api" | "web" | "cli" | "none";
+  visibility: Array<"public" | "private" | "friends">;
+  //   [] = 发布时不能选（平台自己决定，如 B站先审后公开）
+  //   非空 = 这些值可以在发布时指定
+  draft: boolean;                          // 能否存平台草稿箱（决定 draft 模式是否可用）
+  requiresQualification: boolean;          // 只有官方 API 路线为 true
+  minScheduleLeadMs?: number;              // 平台对定时发布的最小提前量（B站 4h）
+  maxFileSizeMb?: number;
+}
+
+interface AccountHealth {
+  state: "ok" | "expiring" | "expired" | "banned" | "manual";
+  expiresAt?: number;      // 能探到就给
+  detail?: string;         // 人话，直接进账号墙
 }
 
 interface PublishResult {
-  id: string;                          // 平台作品 id（发布后核实得到）
+  id: string;                              // 平台作品 id（发布后回读核实得到）
   url: string;
   visibility: "public" | "private" | "friends";
-  state: "published" | "published_limited";
-  followups?: Followup[];              // 见 PRD §7.2
-  evidence?: { screenshot?: string; log?: string };   // 失败/降级时的取证
+  state: "published" | "published_limited";  // limited = 平台侧还有必须先做的事
+  followups?: Followup[];                  // 见下
+  evidence?: { screenshot?: string; log?: string };
+}
+
+interface Followup {
+  kind: "declare_ai_generated" | "upload_captions" | "add_to_collection" | "set_visibility_public";
+  hint: string;                            // 卡片上给人看的一句话
+  verify?: "collection" | "captions" | "visibility";  // 有则系统自己核实（见 ARCHITECTURE §4.1）
 }
 ```
 
