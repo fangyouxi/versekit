@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# 用本仓库绑定的 GitHub 账号执行 gh，不切换全局活跃账号。
+# 用法：bin/ghx repo view --json name
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+acct="$(tr -d '[:space:]' < "$root/.pi/gh-account")"
+exec env GH_TOKEN="$(gh auth token --user "$acct")" gh "$@"
