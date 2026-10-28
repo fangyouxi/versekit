@@ -1,0 +1,9 @@
+{
+  "name": "@fangyouxi/adapter-bilibili",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "B站适配器：biliup 投稿 + 创作中心稿件列表取指标",
+  "exports": { ".": { "import": "./src/index.mjs" } },
+  "main": "./src/index.mjs"
+}
