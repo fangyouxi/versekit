@@ -23,6 +23,7 @@
 
 | 文档 | 什么时候读 |
 |---|---|
+| **`docs/BLUEPRINT.md`** | **动手前必读——唯一架构权威，与任何旧文档冲突时以此为准** |
 | `docs/PRD.md` | 判断"该不该做这个功能" |
 | `docs/ARCHITECTURE.md` | 改内核、表结构、命令、事件时 |
 | `docs/adapter-contract.md` | 写/改任何平台适配器时（14 条硬规则） |
